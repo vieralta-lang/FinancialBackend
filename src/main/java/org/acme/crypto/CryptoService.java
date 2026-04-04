@@ -3,6 +3,7 @@ package org.acme.crypto;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,6 +13,8 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import jakarta.ws.rs.WebApplicationException;
 
 @ApplicationScoped
 public class CryptoService {
@@ -21,6 +24,9 @@ public class CryptoService {
     @Inject
     @RestClient
     CoinGeckoClient coinGeckoClient;
+
+    @Inject
+    CryptoHoldingRepository cryptoHoldingRepository;
 
     private final ConcurrentHashMap<String, CachedPrice> priceCache = new ConcurrentHashMap<>();
 
@@ -57,7 +63,7 @@ public class CryptoService {
     }
 
     public PortfolioValuation getPortfolioValuation() {
-        List<CryptoHolding> holdings = CryptoHolding.listAll();
+        List<CryptoHolding> holdings = cryptoHoldingRepository.listAll();
         if (holdings.isEmpty()) {
             return new PortfolioValuation(List.of(), BigDecimal.ZERO, BigDecimal.ZERO);
         }
@@ -103,6 +109,49 @@ public class CryptoService {
         }
 
         return new PortfolioValuation(valuations, totalUsd, totalBrl);
+    }
+
+    public List<CryptoHolding> listHoldings() {
+        return cryptoHoldingRepository.listAll();
+    }
+
+    public CryptoHolding findHoldingById(Long id) {
+        CryptoHolding holding = cryptoHoldingRepository.findById(id);
+        if (holding == null) {
+            throw new WebApplicationException("Crypto holding not found", 404);
+        }
+        return holding;
+    }
+
+    @Transactional
+    public CryptoHolding createHolding(CryptoHolding holding) {
+        cryptoHoldingRepository.persist(holding);
+        return holding;
+    }
+
+    @Transactional
+    public CryptoHolding updateHolding(Long id, CryptoHolding updated) {
+        CryptoHolding holding = cryptoHoldingRepository.findById(id);
+        if (holding == null) {
+            throw new WebApplicationException("Crypto holding not found", 404);
+        }
+        holding.coinId = updated.coinId;
+        holding.symbol = updated.symbol;
+        holding.quantity = updated.quantity;
+        holding.averagePurchasePrice = updated.averagePurchasePrice;
+        holding.purchaseCurrency = updated.purchaseCurrency;
+        holding.notes = updated.notes;
+        holding.updatedAt = LocalDateTime.now();
+        return holding;
+    }
+
+    @Transactional
+    public void deleteHolding(Long id) {
+        CryptoHolding holding = cryptoHoldingRepository.findById(id);
+        if (holding == null) {
+            throw new WebApplicationException("Crypto holding not found", 404);
+        }
+        cryptoHoldingRepository.delete(holding);
     }
 
     public record CryptoPrice(String coinId, BigDecimal usd, BigDecimal brl) {}

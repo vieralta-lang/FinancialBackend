@@ -8,6 +8,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -15,6 +17,9 @@ import jakarta.validation.constraints.NotNull;
 @Entity
 @Table(name = "accounts")
 public class Account extends PanacheEntity {
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    public org.acme.user.AppUser user;
 
     @NotBlank
     @Column(nullable = false)

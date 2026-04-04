@@ -18,6 +18,9 @@ public class RecurringTransactionScheduler {
     @Inject
     TransactionService transactionService;
 
+    @Inject
+    RecurringTransactionRepository recurringTransactionRepository;
+
     /**
      * Runs daily at midnight to generate transactions from recurring templates.
      */
@@ -25,8 +28,7 @@ public class RecurringTransactionScheduler {
     @Transactional
     public void processRecurring() {
         LocalDate today = LocalDate.now();
-        List<RecurringTransaction> due = RecurringTransaction.list(
-                "active = true and nextDueDate <= ?1", today);
+        List<RecurringTransaction> due = recurringTransactionRepository.findActiveDueBefore(today);
 
         for (RecurringTransaction rt : due) {
             // Check if end date has passed

@@ -1,66 +1,141 @@
 package org.acme.transaction;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import org.acme.account.Account;
-import org.acme.category.Category;
+import org.acme.account.AccountRepository;
+import org.acme.category.CategoryRepository;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 @ApplicationScoped
 public class TransactionService {
 
+    @Inject
+    TransactionRepository transactionRepository;
+
+    @Inject
+    AccountRepository accountRepository;
+
+    @Inject
+    CategoryRepository categoryRepository;
+
+    public List<Transaction> list(Long accountId, TransactionType type, LocalDate from, LocalDate to) {
+        if (accountId != null && from != null && to != null) {
+            return transactionRepository.listByAccountAndDateRange(accountId, from, to);
+        }
+        if (accountId != null) {
+            return transactionRepository.listByAccountId(accountId);
+        }
+        if (type != null) {
+            return transactionRepository.listByType(type);
+        }
+        if (from != null && to != null) {
+            return transactionRepository.listByDateRange(from, to);
+        }
+        return transactionRepository.listAllOrderByDateDesc();
+    }
+
+    public Transaction findById(Long id) {
+        Transaction transaction = transactionRepository.findById(id);
+        if (transaction == null) {
+            throw new IllegalArgumentException("Transaction not found");
+        }
+        return transaction;
+    }
+
     @Transactional
     public Transaction createTransaction(Transaction transaction) {
-        Account account = Account.findById(transaction.account.id);
+        Account account = accountRepository.findById(transaction.account.id);
         if (account == null) {
             throw new IllegalArgumentException("Account not found: " + transaction.account.id);
         }
         transaction.account = account;
 
         if (transaction.category != null && transaction.category.id != null) {
-            transaction.category = Category.findById(transaction.category.id);
+            transaction.category = categoryRepository.findById(transaction.category.id);
         }
 
-        // Update account balance
         adjustBalance(account, transaction.type, transaction.amount);
         account.updatedAt = LocalDateTime.now();
-        transaction.persist();
+        transactionRepository.persist(transaction);
         return transaction;
     }
 
     @Transactional
+    public Transaction updateTransaction(Long id, Transaction updated) {
+        Transaction existing = transactionRepository.findById(id);
+        if (existing == null) {
+            throw new IllegalArgumentException("Transaction not found");
+        }
+
+        reverseBalance(existing.account, existing.type, existing.amount);
+        existing.account.updatedAt = LocalDateTime.now();
+
+        if (updated.account != null && updated.account.id != null) {
+            Account newAccount = accountRepository.findById(updated.account.id);
+            if (newAccount == null) {
+                throw new IllegalArgumentException("Account not found: " + updated.account.id);
+            }
+            existing.account = newAccount;
+        }
+        if (updated.category != null && updated.category.id != null) {
+            existing.category = categoryRepository.findById(updated.category.id);
+        } else {
+            existing.category = null;
+        }
+        existing.type = updated.type;
+        existing.amount = updated.amount;
+        existing.date = updated.date;
+        existing.description = updated.description;
+        existing.updatedAt = LocalDateTime.now();
+
+        adjustBalance(existing.account, existing.type, existing.amount);
+        existing.account.updatedAt = LocalDateTime.now();
+
+        return existing;
+    }
+
+    @Transactional
     public TransferResult createTransfer(Long fromAccountId, Long toAccountId, BigDecimal amount,
-            String description, java.time.LocalDate date) {
-        Account from = Account.findById(fromAccountId);
-        Account to = Account.findById(toAccountId);
+            String description, LocalDate date) {
+        Account from = accountRepository.findById(fromAccountId);
+        Account to = accountRepository.findById(toAccountId);
         if (from == null || to == null) {
             throw new IllegalArgumentException("One or both accounts not found");
         }
 
-        // Generate a shared transfer ID (use sequence-like approach)
         long transferId = System.nanoTime();
+
+        String debitDesc = "Transfer to " + to.name;
+        String creditDesc = "Transfer from " + from.name;
+        if (description != null && !description.isBlank()) {
+            debitDesc += " - " + description;
+            creditDesc += " - " + description;
+        }
 
         Transaction debit = new Transaction();
         debit.account = from;
         debit.type = TransactionType.TRANSFER;
         debit.amount = amount;
-        debit.description = description != null ? description : "Transfer to " + to.name;
+        debit.description = debitDesc;
         debit.date = date;
         debit.transferId = transferId;
-        debit.persist();
+        transactionRepository.persist(debit);
 
         Transaction credit = new Transaction();
         credit.account = to;
         credit.type = TransactionType.TRANSFER;
         credit.amount = amount;
-        credit.description = description != null ? description : "Transfer from " + from.name;
+        credit.description = creditDesc;
         credit.date = date;
         credit.transferId = transferId;
-        credit.persist();
+        transactionRepository.persist(credit);
 
         from.currentBalance = from.currentBalance.subtract(amount);
         from.updatedAt = LocalDateTime.now();
@@ -72,35 +147,34 @@ public class TransactionService {
 
     @Transactional
     public void deleteTransaction(Long id) {
-        Transaction transaction = Transaction.findById(id);
+        Transaction transaction = transactionRepository.findById(id);
         if (transaction == null) {
             throw new IllegalArgumentException("Transaction not found");
         }
 
         Account account = transaction.account;
-        // Reverse the balance change
         reverseBalance(account, transaction.type, transaction.amount);
         account.updatedAt = LocalDateTime.now();
 
-        // If it's a transfer, delete the counterpart too
         if (transaction.transferId != null) {
-            List<Transaction> linked = Transaction.list("transferId = ?1 and id != ?2",
-                    transaction.transferId, transaction.id);
+            List<Transaction> linked = transactionRepository
+                    .findByTransferIdExcluding(transaction.transferId, transaction.id);
             for (Transaction t : linked) {
                 reverseBalance(t.account, t.type, t.amount);
                 t.account.updatedAt = LocalDateTime.now();
-                t.delete();
+                transactionRepository.delete(t);
             }
         }
 
-        transaction.delete();
+        transactionRepository.delete(transaction);
     }
 
     private void adjustBalance(Account account, TransactionType type, BigDecimal amount) {
         switch (type) {
             case INCOME -> account.currentBalance = account.currentBalance.add(amount);
             case EXPENSE -> account.currentBalance = account.currentBalance.subtract(amount);
-            case TRANSFER -> {} // handled separately in createTransfer
+            case TRANSFER -> {
+            }
         }
     }
 
@@ -109,12 +183,10 @@ public class TransactionService {
             case INCOME -> account.currentBalance = account.currentBalance.subtract(amount);
             case EXPENSE -> account.currentBalance = account.currentBalance.add(amount);
             case TRANSFER -> {
-                // For transfer reversal, check description to determine direction
-                // Debit (from) had balance subtracted, credit (to) had balance added
-                // We reverse both in deleteTransaction
             }
         }
     }
 
-    public record TransferResult(Transaction debit, Transaction credit) {}
+    public record TransferResult(Transaction debit, Transaction credit) {
+    }
 }
