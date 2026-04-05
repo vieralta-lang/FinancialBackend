@@ -1,66 +1,114 @@
-# code-with-quarkus
+# MyAgenda Financial Control — Backend
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+REST API for personal financial management built with **Quarkus 3.30** and **Java 17**.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+## Features
 
-## Running the application in dev mode
+- **Accounts** — manage bank accounts and balances
+- **Transactions** — income/expense tracking with attachments
+- **Categories** — organize transactions by category
+- **Budgets** — set monthly spending limits
+- **Recurring transactions** — automate repeating entries
+- **Debts** — track loans and amounts owed
+- **Subscriptions** — manage recurring subscriptions
+- **Crypto portfolio** — real-time prices via CoinGecko API
+- **Reports** — financial summaries and analytics
+- **Authentication** — JWT-based login with RSA key pair
 
-You can run your application in dev mode that enables live coding using:
+## Tech Stack
 
-```shell script
+| Layer | Technology |
+|-------|-----------|
+| Framework | Quarkus (RESTEasy, CDI, Scheduler) |
+| ORM | Hibernate ORM with Panache |
+| Database | PostgreSQL 16 |
+| Auth | SmallRye JWT (RSA256) |
+| Validation | Hibernate Validator |
+| Docs | SmallRye OpenAPI / Swagger UI |
+| Tests | JUnit 5 + REST Assured (H2 in-memory) |
+
+## Prerequisites
+
+- Java 17+
+- Maven 3.9+ (or use the included `mvnw` wrapper)
+- Docker & Docker Compose
+
+## Getting Started
+
+### 1. Start the database
+
+```bash
+docker compose up -d
+```
+
+This starts PostgreSQL on port **5433** with database `myagenda`.
+
+### 2. Generate RSA keys (first time only)
+
+```bash
+openssl genrsa -out src/main/resources/privateKey.pem 2048
+openssl rsa -in src/main/resources/privateKey.pem -pubout -out src/main/resources/publicKey.pem
+```
+
+> **Important:** `privateKey.pem` is in `.gitignore` and must never be committed.
+
+### 3. Run in dev mode
+
+```bash
 ./mvnw quarkus:dev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+The API is available at `http://localhost:8080`.
+Swagger UI: `http://localhost:8080/q/swagger-ui/`
 
-## Packaging and running the application
+### 4. Run tests
 
-The application can be packaged using:
+```bash
+./mvnw test
+```
 
-```shell script
+Tests use an in-memory H2 database configured in `src/test/resources/application.properties`.
+
+## API Endpoints
+
+All endpoints except `/auth/*` and `/q/*` require a valid JWT in the `Authorization: Bearer <token>` header.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/login` | Authenticate and receive JWT |
+| POST | `/auth/register` | Create a new user |
+| CRUD | `/accounts/**` | Account management |
+| CRUD | `/transactions/**` | Transaction management |
+| CRUD | `/categories/**` | Category management |
+| CRUD | `/budgets/**` | Budget management |
+| CRUD | `/recurring/**` | Recurring transactions |
+| CRUD | `/debts/**` | Debt management |
+| CRUD | `/subscriptions/**` | Subscription management |
+| GET | `/crypto/**` | Crypto portfolio and prices |
+| GET | `/reports/**` | Financial reports |
+
+## Project Structure
+
+```
+src/main/java/org/acme/
+-- account/          # Account entity, resource, service
+-- attachment/       # File attachment handling
+-- budget/           # Budget management
+-- category/         # Transaction categories
+-- crypto/           # Crypto portfolio (CoinGecko integration)
+-- debt/             # Debt tracking
+-- login/            # Authentication and JWT generation
+-- recurring/        # Recurring transactions
+-- report/           # Financial reports
+-- subscription/     # Subscription management
+-- transaction/      # Transaction CRUD
+-- user/             # User entity and management
+```
+
+## Docker
+
+```bash
 ./mvnw package
+docker build -f src/main/docker/Dockerfile.jvm -t myagenda-backend .
+docker run -p 8080:8080 myagenda-backend
 ```
-
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that itâ€™s not an _Ã¼ber-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
-
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _Ã¼ber-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
-```
-
-The application, packaged as an _Ã¼ber-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
-```
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
-
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/code-with-quarkus-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
-
-## Related Guides
-
-- REST ([guide](https://quarkus.io/guides/rest)): A Jakarta REST implementation utilizing build time processing and Vert.x. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it.
-
-## Provided Code
-
-### REST
-
-Easily start your REST Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
