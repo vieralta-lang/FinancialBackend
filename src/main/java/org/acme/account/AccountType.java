@@ -5,5 +5,6 @@ public enum AccountType {
     SAVINGS,
     CREDIT_CARD,
     CASH,
-    INVESTMENT
+    INVESTMENT,
+    TICKET
 }

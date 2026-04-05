@@ -3,6 +3,8 @@ package org.acme.account;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,7 +20,8 @@ import jakarta.validation.constraints.NotNull;
 @Table(name = "accounts")
 public class Account extends PanacheEntity {
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonBackReference
     public org.acme.user.AppUser user;
 
     @NotBlank

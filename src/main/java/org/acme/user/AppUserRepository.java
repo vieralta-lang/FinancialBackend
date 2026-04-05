@@ -9,4 +9,8 @@ public class AppUserRepository implements PanacheRepository<AppUser> {
     public AppUser findByName(String name) {
         return find("name", name).firstResult();
     }
+
+    public AppUser findByUsername(String username) {
+        return find("username", username).firstResult();
+    }
 }

@@ -11,4 +11,8 @@ public class AccountRepository implements PanacheRepository<Account> {
     public List<Account> findByUserIsNull() {
         return list("user is null");
     }
+
+    public List<Account> findByUserId(Long userId) {
+        return list("user.id", userId);
+    }
 }

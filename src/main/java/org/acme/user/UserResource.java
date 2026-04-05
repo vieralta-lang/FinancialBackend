@@ -2,6 +2,8 @@ package org.acme.user;
 
 import java.util.List;
 
+import org.acme.account.Account;
+import org.acme.account.AccountService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -23,6 +25,9 @@ public class UserResource {
 
     @Inject
     UserService userService;
+
+    @Inject
+    AccountService accountService;
 
     @GET
     @Operation(summary = "List all users")
@@ -62,5 +67,14 @@ public class UserResource {
     public Response delete(@Parameter(description = "User ID") @PathParam("id") Long id) {
         userService.delete(id);
         return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/{id}/accounts")
+    @Operation(summary = "List accounts for a user")
+    @APIResponse(responseCode = "404", description = "User not found")
+    public List<Account> listAccounts(@Parameter(description = "User ID") @PathParam("id") Long id) {
+        userService.findById(id); // validates user exists
+        return accountService.listByUserId(id);
     }
 }

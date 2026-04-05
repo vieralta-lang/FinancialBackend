@@ -15,6 +15,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Response;
 
 @Path("/accounts")
@@ -25,8 +26,12 @@ public class AccountResource {
     AccountService accountService;
 
     @GET
-    @Operation(summary = "List all accounts")
-    public List<Account> list() {
+    @Operation(summary = "List accounts", description = "List all accounts, optionally filtered by userId")
+    public List<Account> list(
+            @Parameter(description = "Filter by user ID") @QueryParam("userId") Long userId) {
+        if (userId != null) {
+            return accountService.listByUserId(userId);
+        }
         return accountService.listAll();
     }
 

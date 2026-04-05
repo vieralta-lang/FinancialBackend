@@ -6,6 +6,8 @@ import java.util.List;
 
 import org.acme.transaction.Transaction;
 import org.acme.transaction.TransactionRepository;
+import org.acme.user.AppUser;
+import org.acme.user.AppUserRepository;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -21,10 +23,20 @@ public class AccountService {
     @Inject
     TransactionRepository transactionRepository;
 
+    @Inject
+    AppUserRepository appUserRepository;
+
     @Transactional
     public List<Account> listAll() {
         List<Account> accounts = accountRepository.listAll();
-        accounts.forEach(this::recalculate);
+        accounts.forEach(this::recalculateBalance);
+        return accounts;
+    }
+
+    @Transactional
+    public List<Account> listByUserId(Long userId) {
+        List<Account> accounts = accountRepository.findByUserId(userId);
+        accounts.forEach(this::recalculateBalance);
         return accounts;
     }
 
@@ -34,12 +46,19 @@ public class AccountService {
         if (account == null) {
             throw new WebApplicationException("Account not found", 404);
         }
-        recalculate(account);
+        recalculateBalance(account);
         return account;
     }
 
     @Transactional
     public Account create(Account account) {
+        if (account.user != null && account.user.id != null) {
+            AppUser user = appUserRepository.findById(account.user.id);
+            if (user == null) {
+                throw new WebApplicationException("User not found", 404);
+            }
+            account.user = user;
+        }
         account.currentBalance = account.initialBalance;
         accountRepository.persist(account);
         return account;
@@ -68,7 +87,7 @@ public class AccountService {
         accountRepository.delete(account);
     }
 
-    public void recalculate(Account account) {
+    public void recalculateBalance(Account account) {
         List<Transaction> transactions = transactionRepository.listByAccountIdUnordered(account.id);
         BigDecimal balance = account.initialBalance;
         for (Transaction tx : transactions) {
